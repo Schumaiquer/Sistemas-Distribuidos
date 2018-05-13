@@ -1,0 +1,18 @@
+syntax = "proto3";
+option java_multiple_files = true;
+package org.sd.gRPC;
+
+message CommandRequest {
+    string operation = 1;
+    string key = 2;
+    string value = 3;
+    string source = 4;
+}
+
+message CommandResponse {
+    string buffer = 1;
+}
+
+service ExecuteCommandService {
+    rpc ExecuteCommand(CommandRequest) returns (CommandResponse);
+}
