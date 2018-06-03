@@ -10,9 +10,6 @@ import org.sd.gRPC.ExecuteCommandServiceGrpc;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-import java.security.Key;
 import java.util.Scanner;
 
 public class ClientHandler {

@@ -1,11 +1,14 @@
 package org.sd.common;
 
+import org.omg.CORBA.PUBLIC_MEMBER;
 import org.sd.gRPC.CommandRequest;
 
 import java.math.BigInteger;
 import java.nio.charset.CoderMalfunctionError;
 
 public class Command {
+    public BigInteger serial;
+
     private String operation;
     private BigInteger key;
     private String value;

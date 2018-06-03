@@ -1,50 +1,95 @@
 package org.sd.server;
 
-import com.sun.org.apache.xerces.internal.xs.StringList;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.sd.common.Command;
 import org.sd.common.UDPHandler;
 
+import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class ServerExecuteHandler extends Thread {
+public class ServerExecuteHandler extends AbstractServerThread {
     private UDPHandler udp;
 
     private LinkedBlockingQueue<Command> process;
-    private HashMap<BigInteger, String> database;
-    private HashMap<BigInteger, List<String>> observers;
+    private ConcurrentHashMap<BigInteger, String> database;
+    private ConcurrentHashMap<BigInteger, List<String>> observers;
+
+    private BigInteger last = new BigInteger("-1");
 
     public ServerExecuteHandler(UDPHandler udp, LinkedBlockingQueue<Command> process) {
         this.udp = udp;
-        this.process = process;
 
-        this.database = new HashMap<BigInteger, String>();
-        this.observers = new HashMap<BigInteger, List<String>>();
+        this.process = process;
+        this.database = new ConcurrentHashMap<BigInteger, String>();
+        this.observers = new ConcurrentHashMap<BigInteger, List<String>>();
     }
 
-    private void LoadFromLog() {
+    private void LoadFromFile() {
         Scanner scanner = null;
+
+        String buffer = "";
+        ObjectMapper mapper = new ObjectMapper();
+
+        //READ DATABASE
         try {
+            scanner = new Scanner(new FileInputStream("database.dat"));
+            while (scanner.hasNextLine()) {
+                buffer += scanner.nextLine();
+            }
+            this.database = mapper.readValue(buffer, new TypeReference<ConcurrentHashMap<BigInteger, String>>() {
+            });
+        } catch (Exception e) {}
+        finally { if (scanner != null) scanner.close(); }
+
+        try {
+            buffer = "";
+            //READ OBSERVERS
+            scanner = new Scanner(new FileInputStream("observers.dat"));
+            while (scanner.hasNextLine()) {
+                buffer += scanner.nextLine();
+            }
+            this.observers = mapper.readValue(buffer, new TypeReference<ConcurrentHashMap<BigInteger, List<String>>>() {
+            });
+        } catch (Exception e) {}
+        finally { if (scanner != null) scanner.close(); }
+
+        //Se a data de modificacão do arquivo de log for anterior a data de modificao
+        //o servidor caiu entre o snapshot e a limpeza do log
+        //entao ignore o log e só recupere o snapshot
+
+        //READ LOG
+        File logFile = new File("command.log");
+        File snapshotFile = new File("database.dat");
+
+        Date logDate = new Date(logFile.lastModified());
+        Date snapshotDate = new Date(snapshotFile.lastModified());
+
+        if(snapshotDate.compareTo(logDate) > 0) {
+            System.out.println("IGNORANDO E LIMPANDO ARQUIVO DE LOG POR SER MAIS ANTIGO QUE O SNAPSHOT");
+            logFile.delete();
+            return;
+        }
+
+        try{
             scanner = new Scanner(new FileInputStream("command.log"));
             while (scanner.hasNextLine()) {
-                String buffer = scanner.nextLine();
+                buffer = scanner.nextLine();
+                if(buffer == null || buffer.equals("")) continue;
+
                 System.out.println("Loading from log: " + buffer);
 
                 Command command = Command.Deserialize(buffer);
                 this.RunCommand(command);
             }
-        } catch (FileNotFoundException e) {
-
-        } finally {
-            if (scanner != null) scanner.close();
-        }
+        } catch (Exception e) { }
+        finally { if (scanner != null) scanner.close(); }
     }
 
     private String RunCommand(Command command) {
@@ -100,7 +145,7 @@ public class ServerExecuteHandler extends Thread {
         return message;
     }
 
-    public void NotifyClients(Command c, String message, String source) throws IOException {
+    private void NotifyClients(Command c, String message, String source) throws IOException {
         List<String> clients = this.observers.get(c.getKey());
         if(clients == null || clients.isEmpty()) return;
 
@@ -117,11 +162,14 @@ public class ServerExecuteHandler extends Thread {
     }
 
     public void run() {
-        this.LoadFromLog();
+        this.LoadFromFile();
         Command command;
+
         while (true) {
             try {
                 command = this.process.take();
+
+                super.Lock();
                 System.out.println("Processing:" + command.toString());
 
                 String message = this.RunCommand(command);
@@ -137,11 +185,38 @@ public class ServerExecuteHandler extends Thread {
                     this.NotifyClients(command, message, command.getSource());
                 }
 
+                this.last = command.serial;
+                super.Unlock();
+
             } catch (IOException e) {
                 System.out.println(e.getMessage());
             } catch (InterruptedException e) {
                 System.out.println(e.getMessage());
             }
         }
+    }
+
+    public String Database() {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.writeValueAsString(this.database);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+    public String Observers() {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.writeValueAsString(this.observers);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+    public BigInteger getLast() {
+        return this.last;
     }
 }

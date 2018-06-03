@@ -5,32 +5,34 @@ import org.sd.server.ServerHandler;
 
 public class Main {
     public static void main(String[] args) {
+
         String[] input = args;
-        if (input == null || input.length == 0) {
-            System.out.println("NUMERO DE PARAMETROS INVALIDO");
-            args = new String[] {"-SERVER", "-UDP_PORT:8080", "-GRPC:8081"};
-            //args = new String[] {"-CLIENT", "-grpc", "-RECEIVER:9091", "-SERVER:localhost:8081"};
-        }
+//        if (input == null || input.length == 0) {
+//            System.out.println("NUMERO DE PARAMETROS INVALIDO");
+//            args = new String[] {"-SERVER", "-UDP_PORT:8080", "-GRPC:8081"};
+//            //args = new String[] {"-CLIENT", "-grpc", "-RECEIVER:9091", "-SERVER:localhost:8081"};
+//        }
 
         if (args[0].toUpperCase().equals("-SERVER")) {
             ServerHandler server;
             try {
-                if (args.length != 3) throw new Exception();
+                if (args.length != 4) throw new Exception();
 
                 String UDPPort = args[1].split(":")[1];
                 String GRPCPort = args[2].split(":")[1];
+                Integer snapshotInterval = Integer.valueOf(args[3].split(":")[1]);
 
-                server = new ServerHandler(Integer.valueOf(UDPPort), Integer.valueOf(GRPCPort));
+                server = new ServerHandler(Integer.valueOf(UDPPort), Integer.valueOf(GRPCPort), snapshotInterval);
                 server.Start();
             } catch (ArrayIndexOutOfBoundsException e) {
-                System.out.println("O MODO SERVER DEVE SER  SEGUIDO POR -UDP_PORT:PORTNUMBER -gRPC_PORT:PORTNUMBER");
+                System.out.println("O MODO SERVER DEVE SER  SEGUIDO POR -UDP_PORT:PORTNUMBER -gRPC_PORT:PORTNUMBER -SNAPSHOT:1");
             }catch (Exception e) {
                 System.out.println(e.getMessage());
             }
 
         } else if (args[0].toUpperCase().equals("-CLIENT")) {
             try {
-                 ClientHandler client = new ClientHandler();
+                ClientHandler client = new ClientHandler();
 
                 String ReceiverPort = args[2].split(":")[1];
 

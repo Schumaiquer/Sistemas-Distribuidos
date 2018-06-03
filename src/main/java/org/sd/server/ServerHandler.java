@@ -24,7 +24,9 @@ public class ServerHandler {
     private LinkedBlockingQueue<Command> log;
 
     private int grpcServerPort;
-    public ServerHandler(int udpServerPort, int grpcServerPort) throws UnknownHostException, SocketException {
+    private int snapshotInterval;
+
+    public ServerHandler(int udpServerPort, int grpcServerPort, int snapshotInterval) throws UnknownHostException, SocketException {
         this.grpcServerPort = grpcServerPort;
         this.udp = new UDPHandler("localhost", 0, udpServerPort);
 
@@ -33,6 +35,7 @@ public class ServerHandler {
         this.input = new LinkedBlockingQueue<Command>();
         this.process = new LinkedBlockingQueue<Command>();
         this.log = new LinkedBlockingQueue<Command>();
+        this.snapshotInterval = snapshotInterval;
     }
 
     public void Start() throws IOException {
@@ -41,6 +44,7 @@ public class ServerHandler {
         ServerInputHandler inputHandler = new ServerInputHandler(this.input, this.process, this.log);
         ServerLogHandler logHandler = new ServerLogHandler(this.log);
         ServerExecuteHandler executeHandler = new ServerExecuteHandler(this.udp, this.process);
+        ServerSnapshotHandler snapshotHandler = new ServerSnapshotHandler(logHandler, executeHandler, this.snapshotInterval);
 
         Server grpcServer =
         ServerBuilder
@@ -53,6 +57,7 @@ public class ServerHandler {
         inputHandler.start();
         logHandler.start();
         executeHandler.start();
+        snapshotHandler.start();
 
         for(buffer = this.udp.Receive(); true; buffer = this.udp.Receive()){
             try {
